@@ -1,27 +1,27 @@
 const std = @import("std");
-const gitex = @import("gitex");
+const c = @cImport({
+    @cInclude("git2.h");
+});
 
 pub fn main() !void {
-    // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-    try gitex.bufferedPrint();
-}
+    // initialize libgit2
+    _ = c.git_libgit2_init();
+    defer _ = c.git_libgit2_shutdown();
 
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+    var repo: ?*c.git_repository = null;
+    const path = ".";
 
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
+    const err = c.git_repository_open(&repo, path);
+    if (err < 0) {
+        const git_err = c.git_error_last();
+        if (git_err) |e| {
+            std.debug.print("DEBUG: Error {s}\n", .{e.*.message});
         }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
+
+        return error.GitError;
+    }
+
+    defer c.git_repository_free(repo);
+
+    std.debug.print("Repository Opened successfully\n", .{});
 }
